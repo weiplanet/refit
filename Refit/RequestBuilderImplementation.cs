@@ -126,7 +126,18 @@ namespace Refit
                     // for anything that fell through to here, if this is not
                     // a multipart method, add the parameter to the query string
                     if (!restMethod.IsMultipart) {
-                        queryParamsToAdd[restMethod.QueryParameterMap[i]] = settings.UrlParameterFormatter.Format(paramList[i], restMethod.ParameterInfoMap[i]);
+
+                        // Check the value to see if it should be included or skipped
+                        object token;
+                        if (restMethod.OmitValueMap.TryGetValue(i, out token)) {
+                            // we have an entry for it, check the value
+                            if(Equals(token, paramList[i])) {
+                                continue; // it's a match, don't include it
+                            }
+                        }
+
+                        queryParamsToAdd[restMethod.QueryParameterMap[i]] = settings.UrlParameterFormatter.Format(paramList[i], restMethod.ParameterInfoMap[i]);                        
+
                         continue;
                     }
 
@@ -397,6 +408,7 @@ namespace Refit
         public Dictionary<int, string> QueryParameterMap { get; set; }
         public Dictionary<int, string> AttachmentNameMap { get; set; }
         public Dictionary<int, ParameterInfo> ParameterInfoMap { get; set; }
+        public Dictionary<int, object> OmitValueMap { get; set; }
         public Type ReturnType { get; set; }
         public Type SerializedReturnType { get; set; }
         public RefitSettings RefitSettings { get; set; }
@@ -433,6 +445,7 @@ namespace Refit
 
             Headers = parseHeaders(methodInfo);
             HeaderParameterMap = buildHeaderParameterMap(parameterList);
+            OmitValueMap = buildOmitValueMap(parameterList);
 
             // get names for multipart attachments
             AttachmentNameMap = new Dictionary<int, string>();
@@ -569,6 +582,27 @@ namespace Refit
                 var parts = header.Split(':');
                 ret[parts[0].Trim()] = parts.Length > 1 ? 
                     String.Join(":", parts.Skip(1)).Trim() : null;
+            }
+
+            return ret;
+        }
+
+        Dictionary<int, object> buildOmitValueMap(List<ParameterInfo> parameterList)
+        {
+            var ret = new Dictionary<int, object>();
+
+            // We'll go through the parameters to look for the OmitValueAttribute.
+            // If present, store the param index and token value to look for 
+            for(int i = 0; i < parameterList.Count; i++) {
+                var omitVals = parameterList[i].GetCustomAttributes(true)
+                    .OfType<OmitValueAttribute>()
+                    .Select(omva => omva.OmitValue)
+                    .ToList();
+                    
+                if(omitVals.Count > 0) {
+                    // There was an attrib present, take the first one
+                    ret[i] = omitVals[0];
+                }
             }
 
             return ret;

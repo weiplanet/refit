@@ -148,4 +148,15 @@ namespace Refit
         {
         }
     }
+
+    [AttributeUsage(AttributeTargets.Parameter)]
+    public class OmitValueAttribute : Attribute
+    {
+        public OmitValueAttribute(object omitValue = null)
+        {
+            OmitValue = omitValue;
+        }
+
+        public object OmitValue { get; private set; }
+    }
 }
