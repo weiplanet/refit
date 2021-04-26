@@ -69,7 +69,7 @@ namespace Refit.Tests
 
             var resp = await fixture.Get(403);
 
-            Assert.True(!String.IsNullOrWhiteSpace(plainText));
+            Assert.True(!string.IsNullOrWhiteSpace(plainText));
             Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
 
         }
@@ -106,7 +106,7 @@ namespace Refit.Tests
 
             mockHttp.Expect(HttpMethod.Get, "https://httpbin.org/status/403")
                 .Respond(HttpStatusCode.Forbidden);
-       
+
 
             var fixture = RestService.For<IUseOverloadedGenericMethods<HttpBinGet, string, int>>("https://httpbin.org/", settings);
 
@@ -150,7 +150,7 @@ namespace Refit.Tests
             mockHttp.Expect(HttpMethod.Get, "https://httpbin.org/get")
                 .WithHeaders("X-Refit", "99")
                 .WithQueryString("param", "foo")
-                .Respond("application/json", "{'url': 'https://httpbin.org/get', 'args': {'param': 'foo'}}");
+                .Respond("application/json", "{\"url\": \"https://httpbin.org/get\", \"args\": {\"param\": \"foo\"}}");
 
             var fixture = RestService.For<IUseOverloadedGenericMethods<HttpBinGet, string, int>>("https://httpbin.org/", settings);
 
@@ -173,7 +173,7 @@ namespace Refit.Tests
             mockHttp.Expect(HttpMethod.Get, "https://httpbin.org/get")
                 .WithHeaders("X-Refit", "foo")
                 .WithQueryString("param", "99")
-                .Respond("application/json", "{'url': 'https://httpbin.org/get', 'args': {'param': '99'}}");
+                .Respond("application/json", "{\"url\": \"https://httpbin.org/get\", \"args\": {\"param\": \"99\"}}");
 
             var fixture = RestService.For<IUseOverloadedGenericMethods<HttpBinGet, string, int>>("https://httpbin.org/", settings);
 
@@ -197,7 +197,7 @@ namespace Refit.Tests
                     .Respond("application/json", "generic-output");
 
             var fixture = RestService.For<IUseOverloadedGenericMethods<HttpBinGet, string, int>>("https://httpbin.org/", settings);
-            
+
             var result = await fixture.Get<string, int>(99);
 
             Assert.Equal("generic-output", result);
@@ -224,7 +224,7 @@ namespace Refit.Tests
 
             var fixture = RestService.For<IUseOverloadedGenericMethods<HttpBinGet, string, int>>("https://httpbin.org/", settings);
 
-            await fixture.Get<string, int>("str", 3); 
+            await fixture.Get<string, int>("str", 3);
 
             mockHttp.VerifyNoOutstandingExpectation();
         }

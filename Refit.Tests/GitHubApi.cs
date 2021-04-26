@@ -3,14 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Refit; // InterfaceStubGenerator looks for this
 
-using static System.Math; // This is here to verify https://github.com/paulcbetts/refit/issues/283
+using static System.Math; // This is here to verify https://github.com/reactiveui/refit/issues/283
 
 namespace Refit.Tests
 {
-    public class User
+    public record User
     {
         public string Login { get; set; }
         public int Id { get; set; }
@@ -61,9 +62,9 @@ namespace Refit.Tests
 
         [Get("/users/{userName}")]
         IObservable<User> GetUserCamelCase(string userName);
-            
+
         [Get("/orgs/{orgname}/members")]
-        Task<List<User>> GetOrgMembers(string orgName);
+        Task<List<User>> GetOrgMembers(string orgName, CancellationToken cancellationToken = default);
 
         [Get("/search/users")]
         Task<UserSearchResult> FindUsers(string q);
@@ -88,6 +89,15 @@ namespace Refit.Tests
 
         [Post("/users")]
         Task<User> CreateUser(User user);
+
+        [Post("/users")]
+        Task<ApiResponse<User>> CreateUserWithMetadata(User user);
+    }
+
+    public interface IGitHubApiDisposable : IDisposable
+    {
+        [Get("whatever")]
+        Task RefitMethod();
     }
 
     public class TestNested
@@ -103,7 +113,7 @@ namespace Refit.Tests
 
             [Get("/users/{userName}")]
             IObservable<User> GetUserCamelCase(string userName);
-            
+
             [Get("/orgs/{orgname}/members")]
             Task<List<User>> GetOrgMembers(string orgName);
 

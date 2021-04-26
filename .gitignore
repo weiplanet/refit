@@ -63,6 +63,10 @@ _ReSharper*
 # Click-Once directory
 publish
 
+# Visual Studio Code
+
+.vscode/
+
 # Others
 [Bb]in
 [Oo]bj
@@ -85,3 +89,6 @@ packages/
 *.userprefs
 Refit-Tests/test-results
 /InterfaceStubGenerator.App/Properties/launchSettings.json
+*.binlog
+/InterfaceStubGenerator.Core/Properties/launchSettings.json
+*.svclog

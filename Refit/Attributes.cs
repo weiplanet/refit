@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
-using System.Threading.Tasks;
 
 namespace Refit
 {
     public abstract class HttpMethodAttribute : Attribute
     {
-        protected string path;
-
         public HttpMethodAttribute(string path)
         {
             Path = path;
@@ -19,8 +14,8 @@ namespace Refit
 
         public virtual string Path
         {
-            get { return path; }
-            protected set { path = value; }
+            get;
+            protected set;
         }
     }
 
@@ -80,6 +75,17 @@ namespace Refit
     }
 
     [AttributeUsage(AttributeTargets.Method)]
+    public class OptionsAttribute : HttpMethodAttribute
+    {
+        public OptionsAttribute(string path) : base(path) { }
+
+        public override HttpMethod Method
+        {
+            get { return new HttpMethod("OPTIONS"); }
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
     public class HeadAttribute : HttpMethodAttribute
     {
         public HeadAttribute(string path) : base(path) { }
@@ -91,24 +97,39 @@ namespace Refit
     }
 
     [AttributeUsage(AttributeTargets.Method)]
-    public class MultipartAttribute : Attribute { }
+    public class MultipartAttribute : Attribute
+    {
+        public string BoundaryText { get; private set; }
+
+        public MultipartAttribute(string boundaryText = "----MyGreatBoundary")
+        {
+            BoundaryText = boundaryText;
+        }
+
+    }
 
     public enum BodySerializationMethod
     {
         /// <summary>
-        /// JSON encodes data except for strings. Strings are set as-is
+        /// Encodes everything using the ContentSerializer in RefitSettings except for strings. Strings are set as-is
         /// </summary>
         Default,
 
         /// <summary>
         /// Json encodes everything, including strings
         /// </summary>
+        [Obsolete("Use BodySerializationMethod.Serialized instead", false)]
         Json,
 
         /// <summary>
         /// Form-UrlEncode's the values
         /// </summary>
-        UrlEncoded
+        UrlEncoded,
+
+        /// <summary>
+        /// Encodes everything using the ContentSerializer in RefitSettings
+        /// </summary>
+        Serialized
     }
 
     [AttributeUsage(AttributeTargets.Parameter)]
@@ -163,12 +184,21 @@ namespace Refit
         public string Name { get; protected set; }
     }
 
+    /// <summary>
+    /// Allows you provide a Dictionary of headers to be added to the request.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Parameter)]
+    public class HeaderCollectionAttribute : Attribute
+    {
+
+    }
+
     [AttributeUsage(AttributeTargets.Interface | AttributeTargets.Method)]
     public class HeadersAttribute : Attribute
     {
         public HeadersAttribute(params string[] headers)
         {
-            Headers = headers ?? new string[0];
+            Headers = headers ?? Array.Empty<string>();
         }
 
         public string[] Headers { get; }
@@ -185,53 +215,44 @@ namespace Refit
         public string Header { get; }
     }
 
+    /// <summary>
+    /// Used to store the value in HttpRequestMessage.Properties for further processing in a custom DelegatingHandler.
+    /// If a string is supplied to the constructor then it will be used as the key in the HttpRequestMessage.Properties dictionary.
+    /// If no key is specified then the key will be defaulted to the name of the parameter.
+    /// </summary>
     [AttributeUsage(AttributeTargets.Parameter)]
-    public class AuthorizeAttribute : HeaderAttribute
+    public class PropertyAttribute : Attribute
     {
-        public AuthorizeAttribute(string scheme = "Bearer")
-            : base("Authorization: " + scheme) { }
+        public PropertyAttribute() { }
+
+        public PropertyAttribute(string key)
+        {
+            Key = key;
+        }
+
+        /// <summary>
+        /// Specifies the key under which to store the value on the HttpRequestMessage.Properties dictionary.
+        /// </summary>
+        public string? Key { get; }
     }
 
-    /// <summary>
-    /// Collection format defined in https://swagger.io/docs/specification/2-0/describing-parameters/ 
-    /// </summary>
-    public enum CollectionFormat
+    [AttributeUsage(AttributeTargets.Parameter)]
+    public class AuthorizeAttribute : Attribute
     {
-        /// <summary>
-        /// Values formatted wiht RefitSettings.UrlParameterFormatter
-        /// </summary>
-        RefitParameterFormatter,
+        public AuthorizeAttribute(string scheme = "Bearer")
+        {
+            Scheme = scheme;
+        }
 
-        /// <summary>
-        /// Comma-separated values
-        /// </summary>
-        Csv,
-
-        /// <summary>
-        /// Space-separated values
-        /// </summary>
-        Ssv,
-
-        /// <summary>
-        /// Tab-separated values
-        /// </summary>
-        Tsv,
-
-        /// <summary>
-        /// Pipe-separated values
-        /// </summary>
-        Pipes,
-
-        /// <summary>
-        /// Multiple parameter instances
-        /// </summary>
-        Multi
+        public string Scheme { get; }
     }
 
     [AttributeUsage(AttributeTargets.Parameter | AttributeTargets.Property)] // Property is to allow for form url encoded data
 
     public class QueryAttribute : Attribute
     {
+        CollectionFormat? collectionFormat;
+
         public QueryAttribute() { }
 
         public QueryAttribute(string delimiter)
@@ -257,11 +278,71 @@ namespace Refit
             CollectionFormat = collectionFormat;
         }
 
+        /// <summary>
+        /// Used to customize the name of either the query parameter pair or of the form field when form encoding.
+        /// </summary>
+        /// <seealso cref="Prefix"/>
         public string Delimiter { get; protected set; } = ".";
-        public string Prefix { get; protected set; }
 
-        public string Format { get; set; }
+        /// <summary>
+        /// Used to customize the name of the encoded value.
+        /// </summary>
+        /// <remarks>
+        /// Gets combined with <see cref="Delimiter"/> in the format <code>var name = $"{Prefix}{Delimiter}{originalFieldName}"</code>
+        /// where <c>originalFieldName</c> is the name of the object property or method parameter.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// class Form
+        /// {
+        ///   [Query("-", "dontlog")]
+        ///   public string password { get; }
+        /// }
+        /// </code>
+        /// will result in the encoded form having a field named <c>dontlog-password</c>.
+        /// </example>
+        public string? Prefix { get; protected set; }
 
-        public CollectionFormat CollectionFormat { get; set; } = CollectionFormat.RefitParameterFormatter;
+        /// <summary>
+        /// Used to customize the formatting of the encoded value.
+        /// </summary>
+        /// <example>
+        /// <code>
+        /// interface IServerApi
+        /// {
+        ///   [Get("/expenses")]
+        ///   Task addExpense([Query(Format="0.00")] double expense);
+        /// }
+        /// </code>
+        /// Calling <c>serverApi.addExpense(5)</c> will result in a URI of <c>{baseUri}/expenses?expense=5.00</c>.
+        /// </example>
+        public string? Format { get; set; }
+
+        /// <summary>
+        /// Specifies how the collection should be encoded.
+        /// </summary>
+        public CollectionFormat CollectionFormat
+        {
+            // Cannot make property nullable due to Attribute restrictions
+            get => collectionFormat.GetValueOrDefault();
+            set => collectionFormat = value;
+        }
+
+        public bool IsCollectionFormatSpecified => collectionFormat.HasValue;
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
+
+    public class QueryUriFormatAttribute : Attribute
+    {
+        public QueryUriFormatAttribute(UriFormat uriFormat)
+        {
+            UriFormat = uriFormat;
+        }
+
+        /// <summary>
+        /// Specifies how the Query Params should be encoded.
+        /// </summary>
+        public UriFormat UriFormat { get; }
     }
 }
